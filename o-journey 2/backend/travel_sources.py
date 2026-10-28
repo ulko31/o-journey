@@ -46,6 +46,32 @@ def destination_search(q: str):
         LOG.warning('Destination search failed: %s',exc)
         raise HTTPException(503,detail='Поиск городов временно недоступен') from exc
 
+
+@router.get('/places/nearby')
+def nearby_places(lat:float,lon:float,limit:int=25):
+    if not (-90<=lat<=90 and -180<=lon<=180):raise HTTPException(422,'Invalid coordinates')
+    limit=max(3,min(limit,45))
+    query=f'[out:json][timeout:12];(nwr["tourism"~"^(attraction|museum|gallery|viewpoint|artwork)$"]["name"](around:8500,{lat},{lon});nwr["leisure"~"^(park|garden)$"]["name"](around:8500,{lat},{lon});nwr["historic"]["name"](around:8500,{lat},{lon}););out center {limit*3};'
+    for base in ('https://overpass.kumi.systems/api/interpreter','https://overpass-api.de/api/interpreter'):
+        try:
+            response=fetch(base+'?'+urlencode({'data':query}),timeout=10)
+            places=[];seen=set()
+            for e in response.get('elements',[]):
+                tags=e.get('tags') or {};point=e.get('center') or e
+                name=tags.get('name')
+                if not name or 'lat' not in point or 'lon' not in point:continue
+                key=(name.lower(),round(point['lat'],3),round(point['lon'],3))
+                if key in seen:continue
+                seen.add(key)
+                places.append({'id':str(e['type'])+'-'+str(e['id']),'name':name,'lat':point['lat'],'lon':point['lon'],
+                               'type':tags.get('tourism') or tags.get('historic') or tags.get('leisure') or 'place',
+                               'source_url':'https://www.openstreetmap.org/'+str(e['type'])+'/'+str(e['id'])})
+                if len(places)>=limit:break
+            return {'places':places,'provider_status':'ok','source':'OpenStreetMap'}
+        except Exception as exc:
+            LOG.warning('POI provider unavailable: %s %s',type(exc).__name__,exc)
+    return {'places':[],'provider_status':'unavailable','source':'OpenStreetMap','notice':'Каталог мест временно недоступен; данные не выдуманы.'}
+
 @router.get('/lodging/{destination_id}')
 def lodging(destination_id:str, lat:float|None=None, lon:float|None=None, city_name:str|None=None):
     """OSM lodging catalog results only; prices, availability, photos are NOT checked."""
