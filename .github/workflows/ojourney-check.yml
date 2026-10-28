@@ -1,0 +1,45 @@
+name: O Journey checks
+on:
+  push:
+    paths:
+      - 'o-journey 2/**'
+      - '.github/workflows/ojourney-check.yml'
+  workflow_dispatch:
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: 'o-journey 2'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile Python files
+        run: python -m compileall -q backend
+      - name: Install backend
+        run: pip install -r backend/requirements.txt
+      - name: Verify FastAPI registration without external secrets
+        run: |
+          python - <<'PY'
+          from backend.app import app
+          paths={r.path for r in app.routes}
+          for path in ('/api/health','/api/agent/self-test','/api/agent/inspect','/api/hotels/search','/docs'):
+              assert path in paths, f'Missing API route: {path}'
+          print('Backend imports and critical routes OK')
+          PY
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: 'o-journey 2/frontend'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install frontend packages
+        run: npm install --no-audit --no-fund
+      - name: Build React
+        run: npm run build
