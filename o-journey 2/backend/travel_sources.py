@@ -95,6 +95,20 @@ def nearby_places(lat:float,lon:float,limit:int=25,theme:str='general'):
             return {'places':places[:limit],'provider_status':'ok','source':'OpenStreetMap'}
         except Exception as exc:
             LOG.warning('POI provider unavailable: %s %s',type(exc).__name__,exc)
+    # Read-only Wikipedia GeoSearch fallback: actual indexed places, no invented POIs.
+    try:
+        wiki=fetch('https://ru.wikipedia.org/w/api.php?'+urlencode({
+           'action':'query','list':'geosearch','gscoord':f'{lat}|{lon}',
+           'gsradius':10000,'gslimit':min(limit,30),'format':'json'}),timeout=8)
+        results=(wiki.get('query') or {}).get('geosearch') or []
+        places=[{'id':'wiki-'+str(x['pageid']),'name':x['title'],
+                 'lat':x['lat'],'lon':x['lon'],'type':'wikipedia_place',
+                 'source_url':'https://ru.wikipedia.org/?curid='+str(x['pageid'])}
+                 for x in results if all(k in x for k in ('pageid','title','lat','lon'))]
+        if places:return {'places':places,'provider_status':'fallback','source':'Wikipedia GeoSearch',
+                          'notice':'OpenStreetMap недоступен; показаны реальные географические страницы Wikipedia.'}
+    except Exception as exc:
+        LOG.warning('Wikipedia fallback failed: %s',type(exc).__name__)
     return {'places':[],'provider_status':'unavailable','source':'OpenStreetMap','notice':'Каталог мест временно недоступен; данные не выдуманы.'}
 
 @router.get('/lodging/{destination_id}')
