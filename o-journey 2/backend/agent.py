@@ -5,7 +5,7 @@ but tools remain deterministic and explicitly identify missing provider access.
 """
 from datetime import date,datetime,timezone
 from decimal import Decimal
-from fastapi import APIRouter
+from fastapi import APIRouter,HTTPException
 from pydantic import BaseModel,Field
 try:
     from .planner import PlanningRequest,Traveler,plan
@@ -47,5 +47,23 @@ def agent_next(req:AgentInput):
     result=plan(request,use_llm=True)
     return {'stage':'discovery','result':result,
       'tool_status':{'llm_intent':result['llm'],'hotel_rates':'stayapi_available_if_configured',
-        'flight_fares':'requires_travelpayouts_token','visa':'needs_verified_official_country_rules'},
+        'flight_fares':'requires_verified_live_fare','visa':'needs_verified_official_country_rules'},
       'notice':'Это предварительный выбор направления. Реальные тарифы и визы ещё не проверены.'}
+
+@router.post('/inspect')
+def agent_inspect(req:AgentInput):
+    """One call for user intent + real provider status. Hotel searches are deliberately
+    separate to avoid consuming scarce credits for three speculative destinations."""
+    partial=agent_next(req)
+    if partial['stage']=='clarify':
+        return partial
+    result=partial['result']
+    return {'stage':'recommend','intent':result.get('intent'),
+      'llm':result.get('llm'),
+      'scenarios':result.get('scenarios',[]),
+      'budget_verification':'not_possible_without_live_transport_and_lodging_quotes',
+      'visa':{'status':'requires_official_verification','citizenship':req.citizenship},
+      'discount':{'status':'requires_provider_eligibility_check',
+                  'student_declared':req.is_student,'applied_amount':0},
+      'next_step':'Pick a destination and dates, then call /api/hotels/search for actual rates.',
+      'notice':'Destination ranking is preliminary; no hotel, transport or discount prices invented.'}
