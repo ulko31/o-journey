@@ -62,6 +62,20 @@ SEASON_GUIDANCE = {
 }
 METRICS = ('temperature_2m_max','temperature_2m_min','precipitation_sum','snowfall_sum','wind_speed_10m_max')
 
+@app.get('/api/weather/coordinates')
+def weather_coordinates(lat:float,lon:float,departure:date|None=None):
+    if not (-90<=lat<=90 and -180<=lon<=180):raise HTTPException(422,'Invalid coordinates')
+    if departure is None:return {'mode':'seasonal_guidance','metrics':None,'explanation':'Без даты невозможно дать конкретный прогноз. Выберите дату для погоды в этой точке.','source':'Open-Meteo','date':None}
+    today=datetime.now(timezone.utc).date()
+    if departure<today:raise HTTPException(422,'Дата в прошлом')
+    if (departure-today).days>15:return {'mode':'seasonal_guidance','metrics':None,'explanation':'До поездки больше 15 дней: точного прогноза ещё нет.','source':'Open-Meteo','date':departure.isoformat()}
+    try:
+        data=get_json('https://api.open-meteo.com/v1/forecast',{'latitude':lat,'longitude':lon,'daily':','.join(METRICS),'timezone':'auto','forecast_days':16})
+        days=data['daily']['time'];idx=days.index(departure.isoformat())
+        return {'mode':'forecast','metrics':{k:data['daily'][k][idx] for k in METRICS},'explanation':'Прогноз Open-Meteo','source':'Open-Meteo','date':departure.isoformat()}
+    except Exception as exc:
+        raise HTTPException(503,detail={'message':'Не удалось получить прогноз для выбранной точки','type':type(exc).__name__}) from exc
+
 @app.get('/api/weather/{destination_id}')
 def weather(destination_id: str, departure: date | None = None, month: int | None = None):
     if destination_id not in CITIES:
