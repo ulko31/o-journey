@@ -229,3 +229,23 @@ except ImportError as exc:
     if 'no known parent package' not in str(exc):raise
     from stayapi import router as hotels_router
 app.include_router(hotels_router)
+
+@app.get('/api/agent/diagnostics')
+def agent_diagnostics():
+    """Check local Ollama without using a token-generating request or exposing secrets."""
+    import os
+    from urllib.request import Request, urlopen
+    from urllib.error import URLError, HTTPError
+    base=os.getenv('OLLAMA_BASE_URL','http://host.docker.internal:11434').rstrip('/')
+    model=os.getenv('OLLAMA_MODEL','qwen3:4b')
+    report={'ollama':{'configured_model':model,'connected':False,'model_installed':False},
+            'stayapi':{'configured':bool(os.getenv('STAYAPI_KEY','').strip()),'live_search_tested':False}}
+    try:
+        with urlopen(Request(base+'/api/tags'),timeout=5) as response:
+            tags=json.load(response)
+        names=[m.get('name','') for m in tags.get('models',[])]
+        report['ollama'].update({'connected':True,'model_installed':model in names,'installed_models':names[:12]})
+    except Exception as exc:
+        report['ollama']['error_type']=type(exc).__name__
+        report['ollama']['hint']='Проверьте Ollama на Mac и OLLAMA_BASE_URL; сервис должен быть доступен контейнеру.'
+    return report
