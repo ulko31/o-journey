@@ -1,0 +1,31 @@
+name: Verify O Journey
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: python -m pip install -r 'o-journey 2/backend/requirements.txt' pytest
+      - name: Run backend tests
+        working-directory: 'o-journey 2'
+        run: python -m pytest -q
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install frontend dependencies
+        working-directory: 'o-journey 2/frontend'
+        run: npm install --no-audit --no-fund
+      - name: Build React
+        working-directory: 'o-journey 2/frontend'
+        run: npm run build
