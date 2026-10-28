@@ -39,7 +39,8 @@ def hotels(city:str=Query(min_length=2,max_length=120),checkin:date=None,checkou
     payload=request("search",{"dest_id":dest_id,"dest_type":destination.get("dest_type") or chosen.get("dest_type") or "CITY",
         "checkin":checkin.isoformat(),"checkout":checkout.isoformat(),"adults":adults,
         "rooms":rooms,"currency":currency,"rows_per_page":10})
-    data=payload.get("data") or {}\n    if not isinstance(data,dict):raise HTTPException(502,"StayAPI returned an unexpected response")
+    data=payload.get("data") or {}
+    if not isinstance(data,dict):raise HTTPException(502,"StayAPI returned an unexpected response")
     hotels=[]
     for h in data.get("hotels",[]):
         price=h.get("price") or {}
