@@ -24,6 +24,7 @@ class AgentInput(BaseModel):
     citizenship:str|None=None
     residency:str|None=None
     is_student:bool=False
+    novelty:str='balanced'
     preferred_destinations:list[str]=Field(default_factory=list)
 
 @router.post('/next')
@@ -43,7 +44,7 @@ def agent_next(req:AgentInput):
     request=PlanningRequest(message=req.message,origin=req.origin,departure_date=req.departure_date,
         days=req.days,budget_per_person=req.budget_per_person,
         travelers=[Traveler(student=req.is_student) for _ in range(req.travelers)],
-        preferred_destinations=req.preferred_destinations)
+        preferred_destinations=req.preferred_destinations,novelty=req.novelty if req.novelty in ('similar','balanced','new') else 'balanced')
     result=plan(request,use_llm=True)
     return {'stage':'discovery','result':result,
       'tool_status':{'llm_intent':result['llm'],'hotel_rates':'stayapi_available_if_configured',
