@@ -46,6 +46,6 @@ def agent_next(req:AgentInput):
         preferred_destinations=req.preferred_destinations)
     result=plan(request,use_llm=True)
     return {'stage':'discovery','result':result,
-      'tool_status':{'llm_intent':result['llm'],'hotel_rates':'requires_ostrovok_sandbox_credentials',
+      'tool_status':{'llm_intent':result['llm'],'hotel_rates':'stayapi_available_if_configured',
         'flight_fares':'requires_travelpayouts_token','visa':'needs_verified_official_country_rules'},
       'notice':'Это предварительный выбор направления. Реальные тарифы и визы ещё не проверены.'}
