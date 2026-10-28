@@ -1,0 +1,23 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8001:8001"
+    env_file:
+      - path: .env
+        required: false
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "5188:5188"
+    environment:
+      VITE_API_PROXY_TARGET: http://backend:8001
+    depends_on:
+      - backend
+    restart: unless-stopped
