@@ -26,6 +26,15 @@ const CITIES={
  tashkent:{name:'Ташкент',center:[41.2995,69.2401],places:[['Центр города',41.2995,69.2401,'Ориентир']]},
  dilijan:{name:'Дилижан',center:[40.7407,44.8631],places:[['Центр города',40.7407,44.8631,'Ориентир']]},
 };
+const EXTRA_CITY_MAP={
+ bangkok:{name:'Бангкок',center:[13.7563,100.5018],places:[]},
+ hanoi:{name:'Ханой',center:[21.0278,105.8342],places:[]},
+ danang:{name:'Дананг',center:[16.0544,108.2022],places:[]},
+ phuket:{name:'Пхукет',center:[7.8804,98.3923],places:[]},
+ marrakesh:{name:'Марракеш',center:[31.6295,-7.9811],places:[]},
+ bali:{name:'Денпасар',center:[-8.6705,115.2126],places:[]}
+};
+Object.assign(CITIES,EXTRA_CITY_MAP);
 const EXAMPLE='';
 function LocationMap({city,chosen,onPick,roadGeometry}){const host=useRef(null),map=useRef(null),layers=useRef(null);
  useEffect(()=>{if(!host.current)return;const m=L.map(host.current,{scrollWheelZoom:false}).setView(city.center,11);map.current=m;L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap contributors',maxZoom:19}).addTo(m);layers.current=L.layerGroup().addTo(m);setTimeout(()=>m.invalidateSize(),120);return()=>{m.remove();map.current=null}},[]);
