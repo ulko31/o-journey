@@ -58,6 +58,14 @@ EXTRA_DESTINATIONS = [
  {'id':'dilijan','name':'Дилижан','tags':['горы','природа','история'],'country':'Армения'},
 ]
 DESTINATIONS.extend(EXTRA_DESTINATIONS)
+DESTINATIONS.extend([
+ {'id':'bangkok','name':'Бангкок','tags':['еда','культура','город','приключения','архитектура'],'country':'Таиланд'},
+ {'id':'hanoi','name':'Ханой','tags':['еда','культура','город','приключения','история'],'country':'Вьетнам'},
+ {'id':'danang','name':'Дананг','tags':['море','природа','еда','культура','приключения'],'country':'Вьетнам'},
+ {'id':'phuket','name':'Пхукет','tags':['море','природа','приключения','спокойствие'],'country':'Таиланд'},
+ {'id':'marrakesh','name':'Марракеш','tags':['культура','еда','архитектура','приключения','история'],'country':'Марокко'},
+ {'id':'bali','name':'Денпасар','tags':['море','природа','культура','приключения','спокойствие'],'country':'Индонезия'},
+])
 TOPICS = {
  'еда':['еда','кухн','гастрон','ресторан','кафе'],
  'искусство':['искусств','музе','галере','выстав'],
@@ -128,6 +136,7 @@ def plan(req: PlanningRequest, use_llm: bool=False) -> dict:
     scored=[]
     # Non-price travel friction tiers: these only diversify choices, NEVER promise affordability.
     nearby={'kazan','moscow','novgorod','karelia','kaliningrad','minsk'}
+    longhaul={'bangkok','hanoi','danang','phuket','marrakesh','bali'}
     premium_distance={'istanbul','belgrade','baku','tashkent','bishkek','almaty','armenia','georgia','dilijan'}
     low_budget=budget is not None and budget<=30000
     high_budget=budget is not None and budget>=120000
@@ -137,9 +146,9 @@ def plan(req: PlanningRequest, use_llm: bool=False) -> dict:
       history_dislike=any(d['name'].casefold() in v.casefold() for v in req.previous_dislikes)
       score=overlap*3 + (8 if d in named else 0)
       if low_budget:
-        score+=(5 if d['id'] in nearby else -3 if d['id'] in premium_distance else 0)
+        score+=(8 if d['id'] in nearby else -12 if d['id'] in longhaul else -4 if d['id'] in premium_distance else 0)
       elif high_budget:
-        score+=(2 if d['id'] in premium_distance else 0)
+        score+=(10 if d['id'] in longhaul else 2 if d['id'] in premium_distance else 0)
       if req.novelty=='similar': score+=4 if history_like else 0
       elif req.novelty=='new': score-=5 if history_like else 0
       if history_dislike: score-=7
