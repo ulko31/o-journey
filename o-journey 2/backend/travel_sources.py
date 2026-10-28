@@ -34,11 +34,27 @@ def fetch(url, timeout=12):
     with urlopen(request,timeout=timeout,context=ssl.create_default_context(cafile=certifi.where())) as resp:
         return json.load(resp)
 
+@router.get('/destinations/search')
+def destination_search(q: str):
+    if not 2 <= len(q.strip()) <= 100: raise HTTPException(422,'Введите название города (2–100 символов)')
+    try:
+        data=fetch('https://geocoding-api.open-meteo.com/v1/search?'+urlencode({'name':q.strip(),'count':10,'language':'ru','format':'json'}))
+        return {'source':'Open-Meteo Geocoding','results':[{'id':'geo-'+str(x.get('id')),'name':x.get('name'),'country':x.get('country'),
+                'lat':x.get('latitude'),'lon':x.get('longitude'),'admin1':x.get('admin1')} for x in data.get('results',[])
+                if isinstance(x.get('latitude'),(int,float)) and isinstance(x.get('longitude'),(int,float))]}
+    except Exception as exc:
+        LOG.warning('Destination search failed: %s',exc)
+        raise HTTPException(503,detail='Поиск городов временно недоступен') from exc
+
 @router.get('/lodging/{destination_id}')
-def lodging(destination_id:str):
+def lodging(destination_id:str, lat:float|None=None, lon:float|None=None, city_name:str|None=None):
     """OSM lodging catalog results only; prices, availability, photos are NOT checked."""
-    if destination_id not in CITIES: raise HTTPException(404,'Unknown destination')
-    lat,lon,city=CITIES[destination_id]
+    if lat is not None and lon is not None:
+        if not (-90<=lat<=90 and -180<=lon<=180):raise HTTPException(422,'Invalid coordinates')
+        city=(city_name or destination_id)[:100]
+    elif destination_id in CITIES:
+        lat,lon,city=CITIES[destination_id]
+    else: raise HTTPException(422,'Передайте lat и lon для произвольного города')
     query=f'[out:json][timeout:14];(nwr["tourism"~"^(hotel|hostel|guest_house|motel|apartment)$"]["name"](around:4500,{lat},{lon}););out center 35;'
     data=None
     failures=[]
