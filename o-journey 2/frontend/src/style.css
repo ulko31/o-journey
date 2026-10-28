@@ -45,3 +45,12 @@
 .atlas-page .atlas-content{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
 .atlas-page .atlas-content>.surface{min-width:0}
 @media(max-width:760px){.header{flex-wrap:wrap}.top-nav{order:3;width:100%;justify-content:space-around;margin-left:0}.header .status{margin-left:auto}.form-card .form-grid,.atlas-page .atlas-content{grid-template-columns:1fr}.layout{max-width:100%}}
+
+/* Single-column planning home, keeping nav visible and the form centered. */
+.layout{display:flex;flex-direction:column;align-items:center;gap:20px;width:100%}
+.layout>.form-card{width:min(100%,860px);flex:none}
+.layout>.saved-trips{width:min(100%,860px)}
+.top-nav{display:flex;gap:10px;align-items:center;margin-left:auto}
+.top-nav button{background:transparent;color:#fff;border:1px solid transparent;border-radius:12px;padding:11px 15px;font-weight:800}
+.top-nav button.active{background:#def66a;color:#1d3a9e}
+@media(max-width:680px){.header{padding:12px 15px;flex-wrap:wrap}.brand{font-size:21px}.top-nav{margin-left:0;order:3;width:100%}.status{margin-left:auto}main{padding:18px 12px}.surface{padding:19px}.form-grid{grid-template-columns:1fr}.scenario-grid,.trip-layout,.tools-grid{grid-template-columns:1fr}.layout>.form-card{width:100%}}
