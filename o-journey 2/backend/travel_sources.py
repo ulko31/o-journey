@@ -70,10 +70,11 @@ def flight_prices(origin:str,destination:str):
         return {'status':'provider_unavailable','source':'Travelpayouts','offers':[],'notice':'Источник цен сейчас недоступен. Не показываем неподтверждённые тарифы.'}
 
 @router.get('/places/nearby')
-def nearby_places(lat:float,lon:float,limit:int=25):
+def nearby_places(lat:float,lon:float,limit:int=25,theme:str='general'):
     if not (-90<=lat<=90 and -180<=lon<=180):raise HTTPException(422,'Invalid coordinates')
     limit=max(3,min(limit,45))
-    query=f'[out:json][timeout:12];(nwr["tourism"~"^(attraction|museum|gallery|viewpoint|artwork)$"]["name"](around:8500,{lat},{lon});nwr["leisure"~"^(park|garden)$"]["name"](around:8500,{lat},{lon});nwr["historic"]["name"](around:8500,{lat},{lon}););out center {limit*3};'
+    # Include experiences beyond traditional sightseeing; order from original results is not a ranking.
+    query=f'[out:json][timeout:12];(nwr["tourism"~"^(attraction|museum|gallery|viewpoint|artwork)$"]["name"](around:8500,{lat},{lon});nwr["leisure"~"^(park|garden|sports_centre)$"]["name"](around:8500,{lat},{lon});nwr["amenity"~"^(arts_centre|theatre|community_centre|planetarium)$"]["name"](around:8500,{lat},{lon});nwr["historic"]["name"](around:8500,{lat},{lon}););out center {limit*5};'
     for base in ('https://overpass.kumi.systems/api/interpreter','https://overpass-api.de/api/interpreter'):
         try:
             response=fetch(base+'?'+urlencode({'data':query}),timeout=10)
@@ -86,10 +87,12 @@ def nearby_places(lat:float,lon:float,limit:int=25):
                 if key in seen:continue
                 seen.add(key)
                 places.append({'id':str(e['type'])+'-'+str(e['id']),'name':name,'lat':point['lat'],'lon':point['lon'],
-                               'type':tags.get('tourism') or tags.get('historic') or tags.get('leisure') or 'place',
+                               'type':tags.get('amenity') or tags.get('leisure') or tags.get('tourism') or tags.get('historic') or 'place',
                                'source_url':'https://www.openstreetmap.org/'+str(e['type'])+'/'+str(e['id'])})
-                if len(places)>=limit:break
-            return {'places':places,'provider_status':'ok','source':'OpenStreetMap'}
+            if theme in ('new','experiences','culture'):
+                priority={'arts_centre':0,'community_centre':1,'theatre':2,'planetarium':3,'sports_centre':4,'gallery':5,'museum':6,'viewpoint':7,'attraction':8,'historic':9}
+                places.sort(key=lambda x:priority.get(x['type'],10))
+            return {'places':places[:limit],'provider_status':'ok','source':'OpenStreetMap'}
         except Exception as exc:
             LOG.warning('POI provider unavailable: %s %s',type(exc).__name__,exc)
     return {'places':[],'provider_status':'unavailable','source':'OpenStreetMap','notice':'Каталог мест временно недоступен; данные не выдуманы.'}
