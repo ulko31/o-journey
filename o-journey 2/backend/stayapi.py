@@ -33,10 +33,10 @@ def hotels(city:str=Query(min_length=2,max_length=120),checkin:date=None,checkou
     matches=destination_data.get("destinations") or destination_data.get("results") or destination_data.get("suggestions") or []
     chosen=matches[0] if matches and isinstance(matches[0],dict) else destination_data
     if not isinstance(chosen,dict):chosen={}
-    dest_id=chosen.get("dest_id") or destination.get("dest_id")
+    dest_id=destination.get("dest_id") or chosen.get("dest_id")
     if not dest_id:
         return {"hotels":[],"message":"Destination not found","source":"StayAPI"}
-    payload=request("search",{"dest_id":dest_id,"dest_type":chosen.get("dest_type") or "CITY",
+    payload=request("search",{"dest_id":dest_id,"dest_type":destination.get("dest_type") or chosen.get("dest_type") or "CITY",
         "checkin":checkin.isoformat(),"checkout":checkout.isoformat(),"adults":adults,
         "rooms":rooms,"currency":currency,"rows_per_page":10})
     data=payload.get("data") or {}
@@ -52,6 +52,6 @@ def hotels(city:str=Query(min_length=2,max_length=120),checkin:date=None,checkou
             "is_sold_out":h.get("is_sold_out")})
     return {"hotels":hotels,"city":city,"checkin":checkin,"checkout":checkout,
         "adults":adults,"rooms":rooms,"source":"StayAPI / Booking.com public quotes",
-        "checked_at":datetime.now(timezone.utc).isoformat(),
+        "checked_at":payload.get("retrieved_at") or (data.get("metadata") or {}).get("scraped_at") or datetime.now(timezone.utc).isoformat(),
         "notice":"Displayed price may exclude taxes or charges; final availability and total must be rechecked.",
         "search_url":data.get("search_url") or payload.get("url"),"pagination":data.get("pagination")}
