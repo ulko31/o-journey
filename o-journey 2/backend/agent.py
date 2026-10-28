@@ -31,7 +31,7 @@ def agent_next(req:AgentInput):
     """Ask the next meaningful question before ranking travel options."""
     missing=[]
     if not req.origin:missing.append({'field':'origin','question':'Из какого города будете отправляться?'})
-    if req.departure_date is None:missing.append({'field':'departure_date','question':'На какую дату планируете выезд? Можно выбрать приблизительную дату.'})
+    # Flexible travel dates are valid for destination discovery; live quotes require exact dates.
     if req.days is None:missing.append({'field':'days','question':'На сколько дней планируете поездку?'})
     if req.travelers is None:missing.append({'field':'travelers','question':'Сколько человек едет?'})
     if req.budget_per_person is None:missing.append({'field':'budget_per_person','question':'Какой максимальный бюджет на одного человека, в рублях?'})
@@ -58,7 +58,7 @@ def agent_inspect(req:AgentInput):
     if partial['stage']=='clarify':
         return partial
     result=partial['result']
-    return {'stage':'recommend','intent':result.get('intent'),
+    return {**result,'stage':'recommend','intent':result.get('intent'),
       'llm':result.get('llm'),
       'scenarios':result.get('scenarios',[]),
       'budget_verification':'not_possible_without_live_transport_and_lodging_quotes',
