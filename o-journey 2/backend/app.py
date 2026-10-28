@@ -36,49 +36,96 @@ def index():
 def health():
     return {'status':'ok','external_weather':'open-meteo','prices':'not_connected','ai':'not_connected'}
 
+SEASON_GUIDANCE = {
+ 'kazan':'Континентальный климат: зимой морозно, летом бывает тепло.',
+ 'kaliningrad':'Морской климат: переменчивая погода и ветер в течение года.',
+ 'moscow':'Зима обычно холодная, лето умеренно тёплое.',
+ 'ossetia':'Погода в горах быстро меняется; условия зависят от высоты.',
+ 'armenia':'Лето в Ереване часто жаркое, зимой прохладнее; горные районы отличаются.',
+ 'uzbekistan':'Лето обычно очень жаркое, весна и осень часто комфортнее для прогулок.',
+ 'georgia':'В Тбилиси лето жаркое; в горах погода существенно отличается.',
+ 'karelia':'Влажный северный климат: прохладнее летом, зимой возможен снег.'
+}
+METRICS = ('temperature_2m_max','temperature_2m_min','precipitation_sum','snowfall_sum','wind_speed_10m_max')
+
 @app.get('/api/weather/{destination_id}')
-def weather(destination_id: str, departure: date | None = None):
+def weather(destination_id: str, departure: date | None = None, month: int | None = None):
     if destination_id not in CITIES:
         raise HTTPException(404,'Unknown destination')
+    if month is not None and not 1 <= month <= 12:
+        raise HTTPException(422,'Month must be from 1 to 12')
     lat,lon,city=CITIES[destination_id]
     today=datetime.now(timezone.utc).date()
-    when=departure or today
-    days_ahead=(when-today).days
+    # No specific date = useful season notes, not a misleading today's forecast.
+    if departure is None:
+        return {'destination_id':destination_id,'city':city,'date':None,'month':month,
+                'mode':'seasonal_guidance','metrics':None,'verified_forecast':False,
+                'source':'General seasonal guidance','source_url':None,
+                'checked_at':datetime.now(timezone.utc).isoformat(),
+                'explanation':SEASON_GUIDANCE[destination_id]+' Это качественная оценка, не прогноз.',
+                'availability':'date_required_for_forecast'}
+    days_ahead=(departure-today).days
     if days_ahead < 0:
         raise HTTPException(422,'Date is in the past')
     try:
         if days_ahead <= 15:
             data=get_json('https://api.open-meteo.com/v1/forecast',{
-                'latitude':lat,'longitude':lon,'daily':'temperature_2m_max,temperature_2m_min,precipitation_sum,snowfall_sum,wind_speed_10m_max',
+                'latitude':lat,'longitude':lon,'daily':','.join(METRICS),
                 'timezone':'auto','forecast_days':16})
-            day=data['daily']; dates=day['time']
-            if when.isoformat() not in dates:
-                raise ValueError('Forecast does not include selected day')
-            i=dates.index(when.isoformat())
-            metrics={k:day[k][i] for k in ['temperature_2m_max','temperature_2m_min','precipitation_sum','snowfall_sum','wind_speed_10m_max']}
-            mode='forecast'; verified=True
-            explanation='Прогноз на выбранный день. Перед выездом условия могут измениться.'
+            daily=data.get('daily',{})
+            dates=daily.get('time',[])
+            if departure.isoformat() not in dates:
+                raise ValueError('Forecast does not include requested date')
+            idx=dates.index(departure.isoformat())
+            metrics={k:daily[k][idx] for k in METRICS}
+            mode='forecast'
+            explanation='Прогноз на выбранную дату; условия могут измениться.'
         else:
-            # Historical averages are NOT a forecast; sample same calendar period for recent completed years.
+            # A dated historical sample is never represented as a future forecast.
             samples=[]
             for year in range(today.year-3,today.year):
+                sample_day=date(year,departure.month,min(departure.day,28))
                 try:
-                    historical=date(year,when.month, min(when.day,28))
-                    x=get_json('https://archive-api.open-meteo.com/v1/archive',{
-                        'latitude':lat,'longitude':lon,'start_date':historical.isoformat(), 'end_date':historical.isoformat(),
-                        'daily':'temperature_2m_max,temperature_2m_min,precipitation_sum,snowfall_sum,wind_speed_10m_max','timezone':'auto'})
-                    samples.append({k:x['daily'][k][0] for k in ['temperature_2m_max','temperature_2m_min','precipitation_sum','snowfall_sum','wind_speed_10m_max']})
+                    data=get_json('https://archive-api.open-meteo.com/v1/archive',{
+                        'latitude':lat,'longitude':lon,'start_date':sample_day.isoformat(),
+                        'end_date':sample_day.isoformat(),'daily':','.join(METRICS),'timezone':'auto'})
+                    sample={k:data['daily'][k][0] for k in METRICS}
+                    if all(isinstance(v,(int,float)) for v in sample.values()):
+                        samples.append(sample)
                 except Exception:
                     continue
-            if not samples: raise ValueError('Historical data unavailable')
-            metrics={k:round(sum(x[k] for x in samples if x[k] is not None)/len([x for x in samples if x[k] is not None]),1) for k in samples[0]}
-            mode='historical_sample'; verified=False
-            explanation='Среднее по тому же дню за последние доступные годы; это НЕ прогноз и не климатическая норма месяца.'
-        return {'destination_id':destination_id,'city':city,'date':when.isoformat(),'mode':mode,'metrics':metrics,
-            'verified_forecast':verified,'source':'Open-Meteo','source_url':'https://open-meteo.com/',
-            'checked_at':datetime.now(timezone.utc).isoformat(),'explanation':explanation}
+            if not samples:
+                raise ValueError('Historical samples unavailable')
+            metrics={k:round(sum(v[k] for v in samples)/len(samples),1) for k in METRICS}
+            mode='historical_sample'
+            explanation='Выборка аналогичного календарного дня за прошлые годы. Это НЕ прогноз.'
+        return {'destination_id':destination_id,'city':city,'date':departure.isoformat(),
+                'mode':mode,'metrics':metrics,'verified_forecast':mode=='forecast',
+                'source':'Open-Meteo','source_url':'https://open-meteo.com/',
+                'checked_at':datetime.now(timezone.utc).isoformat(),'explanation':explanation}
     except Exception as exc:
-        raise HTTPException(503,detail='Не удалось получить погодные данные от провайдера. Повторите проверку позднее.') from exc
+        # Do not pretend provider values were received. Surface diagnostic category.
+        import logging
+        logging.getLogger(__name__).warning('Weather provider error for %s (%s): %s',destination_id,type(exc).__name__,exc)
+        raise HTTPException(503,detail={'message':'Open-Meteo не ответил корректными данными. Можно планировать поездку без прогноза.',
+                                        'provider':'Open-Meteo','error_type':type(exc).__name__}) from exc
+
+@app.get('/api/places/search')
+def search_places(q: str):
+    """Live city search via Open-Meteo geocoding, without pretending it is a POI database."""
+    if not 2 <= len(q.strip()) <= 100:
+        raise HTTPException(422,'Search query must contain 2-100 characters')
+    try:
+        data=get_json('https://geocoding-api.open-meteo.com/v1/search',
+                      {'name':q.strip(),'count':8,'language':'ru','format':'json'})
+        return {'source':'Open-Meteo Geocoding','results':[{
+            'name':x.get('name'),'country':x.get('country'),
+            'latitude':x.get('latitude'),'longitude':x.get('longitude')}
+            for x in data.get('results',[])], 'live':True}
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning('Geocoding error: %s',exc)
+        raise HTTPException(503,detail='Геокодинг временно недоступен') from exc
 
 class Offer(BaseModel):
     title: str
