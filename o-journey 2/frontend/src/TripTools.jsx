@@ -6,9 +6,9 @@ export default function TripTools({cityId,city,chosen,days,travelers,budgetLimit
  const [checkin,setCheckin]=useState(date||''),[checkout,setCheckout]=useState(date?addDays(date,Math.max(1,Number(days)-1)):'');
  const [hotels,setHotels]=useState(null),[loading,setLoading]=useState(false),[error,setError]=useState(''),[selected,setSelected]=useState(null),[mode,setMode]=useState('transit');
  const [costs,setCosts]=useState({night:'',transport:'',meals:'',activities:'',extra:''});
- useEffect(()=>{setHotels(null);setSelected(null);setError('')},[cityId,people,checkin,checkout]);
  useEffect(()=>{if(date){setCheckin(date);setCheckout(addDays(date,Math.max(1,Number(days)-1)))}},[date,days]);
  const people=Math.max(1,Number(travelers)||1),nights=Math.max(1,Number(days)-1);
+ useEffect(()=>{setHotels(null);setSelected(null);setError('')},[cityId,people,checkin,checkout]);
  const total=nights*(Number(costs.night)||0)+people*(Number(costs.transport)||0)+people*Math.max(1,Number(days))*(Number(costs.meals)||0)+people*(Number(costs.activities)||0)+(Number(costs.extra)||0);
  const filled=Object.values(costs).every(x=>x!==''),limit=people*Number(budgetLimit||0);
  async function search(){setLoading(true);setError('');setHotels(null);try{if(!checkin||!checkout||checkout<=checkin)throw Error('Укажите даты заселения и выезда');const query=new URLSearchParams({city:city.name,checkin,checkout,adults:String(people),rooms:'1',currency:'USD'});const r=await fetch('/api/hotels/search?'+query);const j=await r.json();if(!r.ok)throw Error(typeof j.detail==='string'?j.detail:'Сервис размещения недоступен');setHotels(j)}catch(e){setError(e.message)}finally{setLoading(false)}}
