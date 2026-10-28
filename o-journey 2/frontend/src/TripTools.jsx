@@ -2,7 +2,7 @@ import React,{useEffect,useMemo,useState} from 'react';
 
 const fmt=n=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).format(Number(n)||0);
 
-export default function TripTools({cityId,city,chosen,days,travelers,budgetLimit,onRouteChange}){
+export default function TripTools({cityId,city,chosen,days,travelers,budgetLimit,customDestination,onRouteChange}){
  const [lodging,setLodging]=useState(null),[lodgingError,setLodgingError]=useState(''),[loadingHotels,setLoadingHotels]=useState(false),[hotelId,setHotelId]=useState('');
  const [road,setRoad]=useState(null),[roadError,setRoadError]=useState(''),[loadingRoad,setLoadingRoad]=useState(false);
  const [costs,setCosts]=useState({night:'',transport:'',meals:'',activities:'',extra:''});
@@ -17,7 +17,7 @@ export default function TripTools({cityId,city,chosen,days,travelers,budgetLimit
  const remaining=(Number(budgetLimit)||0)*people-totals.total;
  const filled=Object.values(costs).every(v=>v!==''&&Number(v)>=0);
  useEffect(()=>{setLodging(null);setHotelId('');setLodgingError('');setRoad(null);setRoadError('');onRouteChange(null)},[cityId]);
- async function loadHotels(){setLoadingHotels(true);setLodgingError('');try{const res=await fetch('/api/lodging/'+cityId);const j=await res.json();if(!res.ok)throw Error(typeof j.detail==='object'?j.detail.message:j.detail||'Ошибка каталога');setLodging(j)}catch(e){setLodgingError(e.message)}finally{setLoadingHotels(false)}}
+ async function loadHotels(){setLoadingHotels(true);setLodgingError('');try{const res=await fetch('/api/lodging/'+cityId+(customDestination?'?lat='+customDestination.lat+'&lon='+customDestination.lon+'&city_name='+encodeURIComponent(customDestination.name):''));const j=await res.json();if(!res.ok)throw Error(typeof j.detail==='object'?j.detail.message:j.detail||'Ошибка каталога');setLodging(j)}catch(e){setLodgingError(e.message)}finally{setLoadingHotels(false)}}
  async function buildRoad(){setLoadingRoad(true);setRoadError('');setRoad(null);onRouteChange(null);const pts=chosen.map(i=>city.places[i]).filter(Boolean);if(pts.length<2){setRoadError('Выберите хотя бы две остановки');setLoadingRoad(false);return}
   try{const res=await fetch('/api/route',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({points:pts.map(p=>({title:p[0],lat:p[1],lon:p[2]}))})});const j=await res.json();if(!res.ok)throw Error(typeof j.detail==='object'?j.detail.message:j.detail||'Маршрут недоступен');setRoad(j);onRouteChange(j.geometry)}catch(e){setRoadError(e.message)}finally{setLoadingRoad(false)}
  }
