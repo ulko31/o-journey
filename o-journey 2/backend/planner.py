@@ -123,17 +123,26 @@ def plan(req: PlanningRequest, use_llm: bool=False) -> dict:
     # No supplier tariff is known here. Budget cannot be used to rank destinations as affordable.
     # Typical international trips cannot be promised within an arbitrary low budget.
     scored=[]
+    # Non-price travel friction tiers: these only diversify choices, NEVER promise affordability.
+    nearby={'kazan','moscow','novgorod','karelia','kaliningrad','minsk'}
+    premium_distance={'istanbul','belgrade','baku','tashkent','bishkek','almaty','armenia','georgia','dilijan'}
+    low_budget=budget is not None and budget<=30000
+    high_budget=budget is not None and budget>=120000
     for d in DESTINATIONS:
       overlap=len(set(d['tags']) & set(interests))
       history_like=any(d['name'].casefold() in v.casefold() for v in req.previous_likes)
       history_dislike=any(d['name'].casefold() in v.casefold() for v in req.previous_dislikes)
       score=overlap*3 + (8 if d in named else 0)
+      if low_budget:
+        score+=(5 if d['id'] in nearby else -3 if d['id'] in premium_distance else 0)
+      elif high_budget:
+        score+=(2 if d['id'] in premium_distance else 0)
       if req.novelty=='similar': score+=4 if history_like else 0
       elif req.novelty=='new': score-=5 if history_like else 0
       if history_dislike: score-=7
       scored.append((score,d))
     scored.sort(key=lambda x:(-x[0],x[1]['name']))
-    if not interests and not named:
+    if not interests and not named and budget is None:
       order=['kaliningrad','almaty','istanbul','karelia','minsk','dagestan','armenia']
       scored.sort(key=lambda x:order.index(x[1]['id']) if x[1]['id'] in order else 100)
     # Diversify countries when scores are similar.
@@ -148,7 +157,7 @@ def plan(req: PlanningRequest, use_llm: bool=False) -> dict:
     scenarios=[]
     for index,d in enumerate(selected):
       scenarios.append({
-       'id':f'scenario_{index+1}','destination':d,'rank_basis':{'interest_overlap':list(set(interests)&set(d['tags'])),'novelty':req.novelty,'budget_fit':'heuristic_only','indicative_cost_rub':None},
+       'id':f'scenario_{index+1}','destination':d,'rank_basis':{'interest_overlap':list(set(interests)&set(d['tags'])),'novelty':req.novelty,'budget_fit':'not_verified','indicative_cost_rub':None},
        'duration_days':req.days,'start_date':req.departure_date.isoformat() if req.departure_date else None,
        'lodging_options':[],'transport_options':[],'activities':[],
        'budget':{'per_person_limit':str(budget) if budget is not None else None,'total_price':None,'currency':'RUB','status':'not_quoted'},
