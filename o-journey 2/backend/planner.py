@@ -9,6 +9,8 @@ from decimal import Decimal
 from typing import Literal
 import json, os, re
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError,URLError
+import logging
 from pydantic import BaseModel, Field
 
 class Traveler(BaseModel):
@@ -90,13 +92,14 @@ def llm_extract(message: str) -> dict:
     prompt=('Верни ТОЛЬКО JSON с полями interests (массив из: еда, искусство, архитектура, море, горы, природа, история, город, приключения, культура, спокойствие, уединение), destinations (названия упомянутых направлений). '
             'Учитывай отрицания. Не придумывай цены, гостиницы и географию. Запрос: '+message)
     try:
-      payload={'model':model,'stream':False,'format':'json','messages':[{'role':'user','content':prompt}],'options':{'temperature':0,'num_predict':260}}
+      payload={'model':model,'stream':False,'format':'json','messages':[{'role':'user','content':prompt}],'options':{'temperature':0,'num_predict':260},'think':False}
       req=Request(base+'/api/chat',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json'})
       with urlopen(req,timeout=28) as resp:result=json.load(resp)
       parsed=json.loads(result['message']['content'])
       return {'enabled':True,'provider':'ollama','interests':parsed.get('interests',[]),'destinations':parsed.get('destinations',[])}
-    except Exception:
-      return {'enabled':False,'provider':'rules','message':'Ollama недоступна, используется поиск по интересам'}
+    except Exception as exc:
+      logging.getLogger(__name__).warning('Ollama intent extraction failed: %s: %s',type(exc).__name__,str(exc)[:250])
+      return {'enabled':False,'provider':'rules','message':'Ollama недоступна, используется поиск по интересам','error_type':type(exc).__name__,'diagnostic':str(exc)[:180]}
 
 def plan(req: PlanningRequest, use_llm: bool=False) -> dict:
     text=req.message.casefold()
