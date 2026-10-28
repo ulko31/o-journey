@@ -2,7 +2,7 @@
 from __future__ import annotations
 from datetime import datetime, timezone
 from functools import lru_cache
-import json, logging, ssl
+import json, logging, ssl, os
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 import certifi
@@ -46,6 +46,28 @@ def destination_search(q: str):
         LOG.warning('Destination search failed: %s',exc)
         raise HTTPException(503,detail='Поиск городов временно недоступен') from exc
 
+
+AIRPORT_CODES={'Санкт-Петербург':'LED','Москва':'MOW','Казань':'KZN','Ереван':'EVN','Баку':'BAK','Тбилиси':'TBS','Стамбул':'IST','Алматы':'ALA','Минск':'MSQ','Токио':'TYO','Киото':'KIX','Осака':'KIX','Париж':'PAR','Лондон':'LON','Рим':'ROM','Берлин':'BER','Дубай':'DXB','Бангкок':'BKK','Пекин':'BJS','Шанхай':'SHA','Сеул':'SEL','Белград':'BEG','Калининград':'KGD','Сочи':'AER','Махачкала':'MCX','Мурманск':'MMK','Ташкент':'TAS','Самарканд':'SKD','Бишкек':'FRU','Нью-Йорк':'NYC'}
+@router.get('/flight-prices')
+def flight_prices(origin:str,destination:str):
+    """Travelpayouts cached observed flight prices; not bookable live quotations."""
+    token=os.getenv('TRAVELPAYOUTS_TOKEN','')
+    if not token:
+        return {'status':'not_configured','source':'Travelpayouts','offers':[],'notice':'Для реальных наблюдаемых цен авиабилетов требуется TRAVELPAYOUTS_TOKEN. Подключение доступно, ключ не задан.'}
+    src=AIRPORT_CODES.get(origin.strip(),origin.strip().upper() if len(origin.strip())==3 else None)
+    dst=AIRPORT_CODES.get(destination.strip(),destination.strip().upper() if len(destination.strip())==3 else None)
+    if not src or not dst:
+        return {'status':'airport_unmapped','offers':[],'source':'Travelpayouts','notice':'Для этого города ещё не найден код аэропорта IATA. Не подставляем чужой город.'}
+    try:
+        url='https://api.travelpayouts.com/v2/prices/latest?'+urlencode({'origin':src,'destination':dst,'currency':'RUB','period_type':'year','limit':5,'sorting':'price'})
+        req=Request(url,headers={'X-Access-Token':token,'Accept':'application/json','User-Agent':'OJourneyHackathonDemo/0.9'})
+        with urlopen(req,timeout=10,context=ssl.create_default_context(cafile=certifi.where())) as response:
+            data=json.load(response)
+        quotes=[{'price_rub':v.get('value'),'depart_date':v.get('depart_date'),'return_date':v.get('return_date'),'found_at':v.get('found_at'),'expires_at':v.get('expires_at'),'origin':src,'destination':dst,'status':'cached_observation_not_bookable'} for v in data.get('data',[]) if isinstance(v,dict) and isinstance(v.get('value'),(int,float))]
+        return {'status':'ok' if quotes else 'no_results','source':'Travelpayouts cached flight data','offers':quotes,'notice':'Цены из кэша прошлых поисков. НЕ подтверждают наличие билета, цену на ваши даты или стоимость поездки туда-обратно.'}
+    except Exception as exc:
+        LOG.warning('Travelpayouts: %s %s',type(exc).__name__,exc)
+        return {'status':'provider_unavailable','source':'Travelpayouts','offers':[],'notice':'Источник цен сейчас недоступен. Не показываем неподтверждённые тарифы.'}
 
 @router.get('/places/nearby')
 def nearby_places(lat:float,lon:float,limit:int=25):
