@@ -112,7 +112,12 @@ def quote(request: QuoteRequest):
             'lines':line_items,'currency':'RUB'}
 
 # Phase 6: transparent travel discovery and itinerary checks.
-from .planner import PlanningRequest, ItineraryCheck, plan, check_itinerary
+try:
+    from .planner import PlanningRequest, ItineraryCheck, plan, check_itinerary
+except ImportError as exc:
+    if 'no known parent package' not in str(exc):
+        raise
+    from planner import PlanningRequest, ItineraryCheck, plan, check_itinerary
 
 @app.post('/api/plan')
 def create_plan(request: PlanningRequest, use_llm: bool=False):
