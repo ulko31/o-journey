@@ -66,7 +66,9 @@ TOPICS = {
  'история':['истори','замк','крепост'],
  'город':['город','урбан','шопинг'],
  'приключения':['приключ','адреналин','активн','необычн'],
- 'культура':['культур','местн','традиц'],
+ 'культура':['культур','местн','традиц','новую стран','новое'],
+ 'спокойствие':['спокойн','расслаб','релакс','тихий отдых'],
+ 'уединение':['уедин','без людей','без толп','тишин'],
 }
 
 def parse_interests(message: str) -> list[str]:
@@ -82,23 +84,25 @@ def extract_budget(message: str) -> Decimal | None:
     return value
 
 def llm_extract(message: str) -> dict:
-    """Optional, never required for core operation; strictly constrained JSON output."""
-    key=os.getenv('OPENAI_API_KEY')
-    if not key: return {'enabled':False,'message':'LLM не подключена: отсутствует OPENAI_API_KEY'}
-    payload={'model':os.getenv('OPENAI_MODEL','gpt-4.1-mini'),
-      'messages':[{'role':'system','content':'Извлеки из запроса путешествия только интересы (interests: массив строк) и предложенные страны (destinations: массив строк). НЕ генерируй цены, названия отелей, наличие, прогноз, ссылки или даты. Ответь только JSON объектом.'}, {'role':'user','content':message}],
-      'response_format':{'type':'json_object'},'temperature':0}
+    """Local Ollama extraction. Never generate prices, hotels or availability."""
+    base=os.getenv('OLLAMA_BASE_URL','http://host.docker.internal:11434').rstrip('/')
+    model=os.getenv('OLLAMA_MODEL','qwen3:4b')
+    prompt=('Верни ТОЛЬКО JSON с полями interests (массив из: еда, искусство, архитектура, море, горы, природа, история, город, приключения, культура, спокойствие, уединение), destinations (названия упомянутых направлений). '
+            'Учитывай отрицания. Не придумывай цены, гостиницы и географию. Запрос: '+message)
     try:
-      req=Request('https://api.openai.com/v1/chat/completions',data=json.dumps(payload).encode(),headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'})
-      with urlopen(req,timeout=12) as resp: result=json.load(resp)
-      parsed=json.loads(result['choices'][0]['message']['content'])
-      return {'enabled':True,'interests':parsed.get('interests',[]),'destinations':parsed.get('destinations',[])}
+      payload={'model':model,'stream':False,'format':'json','messages':[{'role':'user','content':prompt}],'options':{'temperature':0,'num_predict':260}}
+      req=Request(base+'/api/chat',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json'})
+      with urlopen(req,timeout=28) as resp:result=json.load(resp)
+      parsed=json.loads(result['message']['content'])
+      return {'enabled':True,'provider':'ollama','interests':parsed.get('interests',[]),'destinations':parsed.get('destinations',[])}
     except Exception:
-      return {'enabled':False,'message':'Модель недоступна; использован локальный разбор запроса'}
+      return {'enabled':False,'provider':'rules','message':'Ollama недоступна, используется поиск по интересам'}
 
 def plan(req: PlanningRequest, use_llm: bool=False) -> dict:
     text=req.message.casefold()
     interests=parse_interests(req.message)
+    # Crosswalk mood preferences onto travel features for the fixed catalog.
+    if 'спокойствие' in interests or 'уединение' in interests:interests.append('природа')
     # Don't treat clearly negated topics as positive wishes.
     for tag,patterns in TOPICS.items():
       if any(re.search(r'(?:не\\s+хочу|без|никаких|не\\s+люблю)\\s+[^,.!?]{0,18}'+re.escape(p),text) for p in patterns):
@@ -116,22 +120,14 @@ def plan(req: PlanningRequest, use_llm: bool=False) -> dict:
     budget=req.budget_per_person or extract_budget(req.message)
     llm_countries=[str(x).casefold() for x in llm.get('destinations',[]) if isinstance(x,str)] if llm.get('enabled') else []
     named=[d for d in DESTINATIONS if d['name'].casefold() in text or d['country'].casefold() in text or d['name'].casefold() in [v.casefold() for v in req.preferred_destinations] or d['name'].casefold() in llm_countries or d['country'].casefold() in llm_countries]
-    # Budget bands are synthetic affordability heuristics, NOT supplier prices.
+    # No supplier tariff is known here. Budget cannot be used to rank destinations as affordable.
     # Typical international trips cannot be promised within an arbitrary low budget.
-    indicative_daily={'Россия':3800,'Армения':5200,'Грузия':5700,'Узбекистан':4300,
-      'Беларусь':3900,'Казахстан':5100,'Кыргызстан':4200,'Азербайджан':6500,
-      'Турция':7600,'Сербия':8100}
-    # These are planning assumptions only; actual transport from origin is unknown.
     scored=[]
     for d in DESTINATIONS:
       overlap=len(set(d['tags']) & set(interests))
       history_like=any(d['name'].casefold() in v.casefold() for v in req.previous_likes)
       history_dislike=any(d['name'].casefold() in v.casefold() for v in req.previous_dislikes)
       score=overlap*3 + (8 if d in named else 0)
-      indicative_cost=indicative_daily.get(d['country'],7500)*req.days
-      if budget is not None:
-        if Decimal(indicative_cost)>budget:score-=min(12,3+int((Decimal(indicative_cost)-budget)/max(Decimal('6000'),budget/3)))
-        else:score+=2
       if req.novelty=='similar': score+=4 if history_like else 0
       elif req.novelty=='new': score-=5 if history_like else 0
       if history_dislike: score-=7
@@ -152,7 +148,7 @@ def plan(req: PlanningRequest, use_llm: bool=False) -> dict:
     scenarios=[]
     for index,d in enumerate(selected):
       scenarios.append({
-       'id':f'scenario_{index+1}','destination':d,'rank_basis':{'interest_overlap':list(set(interests)&set(d['tags'])),'novelty':req.novelty,'budget_fit':'heuristic_only','indicative_cost_rub':indicative_daily.get(d['country'],7500)*req.days},
+       'id':f'scenario_{index+1}','destination':d,'rank_basis':{'interest_overlap':list(set(interests)&set(d['tags'])),'novelty':req.novelty,'budget_fit':'heuristic_only','indicative_cost_rub':None},
        'duration_days':req.days,'start_date':req.departure_date.isoformat() if req.departure_date else None,
        'lodging_options':[],'transport_options':[],'activities':[],
        'budget':{'per_person_limit':str(budget) if budget is not None else None,'total_price':None,'currency':'RUB','status':'not_quoted'},
