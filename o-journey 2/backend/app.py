@@ -7,6 +7,8 @@ from typing import Literal
 from urllib.parse import urlencode
 from urllib.request import urlopen
 import json
+import ssl
+import certifi
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -25,7 +27,7 @@ CITIES = {
 
 def get_json(url: str, params: dict) -> dict:
     request_url = url + '?' + urlencode(params)
-    with urlopen(request_url,timeout=9) as response:
+    with urlopen(request_url,timeout=9,context=ssl.create_default_context(cafile=certifi.where())) as response:
         return json.load(response)
 
 @app.get('/')
