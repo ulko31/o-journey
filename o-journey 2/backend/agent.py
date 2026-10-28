@@ -11,7 +11,7 @@ from pydantic import BaseModel,Field
 try:
     from .planner import PlanningRequest,Traveler,plan,extract_budget
 except ImportError:
-    from planner import PlanningRequest,Traveler,plan
+    from planner import PlanningRequest,Traveler,plan,extract_budget
 
 router=APIRouter(prefix='/api/agent',tags=['agent'])
 
