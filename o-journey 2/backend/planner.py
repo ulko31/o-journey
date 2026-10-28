@@ -106,9 +106,16 @@ def plan(req: PlanningRequest, use_llm: bool=False) -> dict:
     for t in req.travelers:
       interests.extend(t.interests)
     llm=llm_extract(req.message) if use_llm else {'enabled':False,'message':'Локальный разбор; LLM не запрашивалась'}
+    # LLM extracts intent; deterministic scoring and source validation remain server-side.
+    if llm.get('enabled'):
+      for item in llm.get('interests',[]):
+        if isinstance(item,str):
+          word=item.casefold().strip()
+          if word in TOPICS and word not in interests:interests.append(word)
     interests=list(dict.fromkeys(interests))
     budget=req.budget_per_person or extract_budget(req.message)
-    named=[d for d in DESTINATIONS if d['name'].casefold() in text or d['country'].casefold() in text or d['name'].casefold() in [s.casefold() for s in req.preferred_destinations]]
+    llm_countries=[str(x).casefold() for x in llm.get('destinations',[]) if isinstance(x,str)] if llm.get('enabled') else []
+    named=[d for d in DESTINATIONS if d['name'].casefold() in text or d['country'].casefold() in text or d['name'].casefold() in [v.casefold() for v in req.preferred_destinations] or d['name'].casefold() in llm_countries or d['country'].casefold() in llm_countries]
     scored=[]
     for d in DESTINATIONS:
       overlap=len(set(d['tags']) & set(interests))
