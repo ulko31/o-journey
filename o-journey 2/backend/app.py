@@ -160,7 +160,12 @@ def quote(request: QuoteRequest):
             'is_bookable':bool(request.offers) and all(o.source_type=='verified' and o.source_url and o.checked_at for o in request.offers),
             'lines':line_items,'currency':'RUB'}
 
-from .travel_sources import router as travel_router
+try:
+    from .travel_sources import router as travel_router
+except ImportError as exc:
+    if 'no known parent package' not in str(exc):
+        raise
+    from travel_sources import router as travel_router
 app.include_router(travel_router)
 
 # Phase 6: transparent travel discovery and itinerary checks.
