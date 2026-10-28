@@ -48,7 +48,7 @@ def index():
 
 @app.get('/api/health')
 def health():
-    return {'status':'ok','external_weather':'open-meteo','prices':'not_connected','ai':'not_connected'}
+    return {'status':'ok','external_weather':'open-meteo','prices':'not_connected','ai':'available_when_configured'}
 
 SEASON_GUIDANCE = {
  'kazan':'Континентальный климат: зимой морозно, летом бывает тепло.',
@@ -193,6 +193,12 @@ except ImportError as exc:
         raise
     from travel_sources import router as travel_router
 app.include_router(travel_router)
+try:
+    from .demo_catalog import router as demo_router
+except ImportError as exc:
+    if 'no known parent package' not in str(exc):raise
+    from demo_catalog import router as demo_router
+app.include_router(demo_router)
 
 # Phase 6: transparent travel discovery and itinerary checks.
 try:
