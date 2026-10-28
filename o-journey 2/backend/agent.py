@@ -9,7 +9,7 @@ from decimal import Decimal
 from fastapi import APIRouter,HTTPException
 from pydantic import BaseModel,Field
 try:
-    from .planner import PlanningRequest,Traveler,plan
+    from .planner import PlanningRequest,Traveler,plan,extract_budget
 except ImportError:
     from planner import PlanningRequest,Traveler,plan
 
@@ -36,15 +36,15 @@ def agent_next(req:AgentInput):
     # Flexible travel dates are valid for destination discovery; live quotes require exact dates.
     if req.days is None:missing.append({'field':'days','question':'На сколько дней планируете поездку?'})
     if req.travelers is None:missing.append({'field':'travelers','question':'Сколько человек едет?'})
-    if req.budget_per_person is None:missing.append({'field':'budget_per_person','question':'Какой максимальный бюджет на одного человека, в рублях?'})
+    if req.budget_per_person is None and extract_budget(req.message) is None:missing.append({'field':'budget_per_person','question':'Какой максимальный бюджет на одного человека, в рублях?'})
     if not req.citizenship:missing.append({'field':'citizenship','question':'Какое гражданство у путешественника? Это нужно только для проверки визовых условий.'})
     if missing:
         return {'stage':'clarify','question':missing[0]['question'],'required_fields':missing,
                 'facts':req.model_dump(mode='json'),
                 'notice':'Пока недостаточно условий для проверки бюджета, визы и доступности.'}
     request=PlanningRequest(message=req.message,origin=req.origin,departure_date=req.departure_date,
-        days=req.days,budget_per_person=req.budget_per_person,
-        travelers=[Traveler(student=(req.is_student or bool(re.search(r'\\bстудент(?:ка|ом|у)?\\b',req.message,re.I)))) for _ in range(req.travelers)],
+        days=req.days,budget_per_person=req.budget_per_person or extract_budget(req.message),
+        travelers=[Traveler(student=(req.is_student or bool(re.search(r'студент',req.message,re.I)))) for _ in range(req.travelers)],
         preferred_destinations=req.preferred_destinations,novelty=req.novelty if req.novelty in ('similar','balanced','new') else 'balanced')
     result=plan(request,use_llm=True)
     return {'stage':'discovery','result':result,
@@ -66,7 +66,7 @@ def agent_inspect(req:AgentInput):
       'budget_verification':'not_possible_without_live_transport_and_lodging_quotes',
       'visa':{'status':'requires_official_verification','citizenship':req.citizenship},
       'discount':{'status':'requires_provider_eligibility_check',
-                  'student_declared':bool(req.is_student or re.search(r'\\bстудент(?:ка|ом|у)?\\b',req.message,re.I)),'applied_amount':0},
+                  'student_declared':bool(req.is_student or re.search(r'студент',req.message,re.I)),'applied_amount':0},
       'next_step':'Pick a destination and dates, then call /api/hotels/search for actual rates.',
       'notice':'Destination ranking is preliminary; no hotel, transport or discount prices invented.'}
 
