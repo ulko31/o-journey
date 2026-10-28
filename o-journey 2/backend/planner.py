@@ -40,6 +40,22 @@ DESTINATIONS = [
   {'id':'georgia','name':'Тбилиси','tags':['еда','история','архитектура','город','культура'],'country':'Грузия'},
   {'id':'karelia','name':'Петрозаводск','tags':['природа','приключения','вода','история'],'country':'Россия'},
 ]
+# Additional destinations broaden discovery. No unverified hotel/ticket claims.
+EXTRA_DESTINATIONS = [
+ {'id':'sochi','name':'Сочи','tags':['море','горы','природа','приключения'],'country':'Россия'},
+ {'id':'dagestan','name':'Махачкала','tags':['море','горы','природа','еда','приключения'],'country':'Россия'},
+ {'id':'murmansk','name':'Мурманск','tags':['природа','приключения','море'],'country':'Россия'},
+ {'id':'novgorod','name':'Великий Новгород','tags':['история','культура','архитектура'],'country':'Россия'},
+ {'id':'minsk','name':'Минск','tags':['город','культура','архитектура','еда'],'country':'Беларусь'},
+ {'id':'almaty','name':'Алматы','tags':['горы','природа','город','еда','приключения'],'country':'Казахстан'},
+ {'id':'bishkek','name':'Бишкек','tags':['горы','природа','еда','приключения'],'country':'Кыргызстан'},
+ {'id':'baku','name':'Баку','tags':['море','еда','архитектура','культура'],'country':'Азербайджан'},
+ {'id':'istanbul','name':'Стамбул','tags':['море','еда','архитектура','история','культура'],'country':'Турция'},
+ {'id':'belgrade','name':'Белград','tags':['еда','город','культура','история'],'country':'Сербия'},
+ {'id':'tashkent','name':'Ташкент','tags':['город','еда','культура','архитектура'],'country':'Узбекистан'},
+ {'id':'dilijan','name':'Дилижан','tags':['горы','природа','история'],'country':'Армения'},
+]
+DESTINATIONS.extend(EXTRA_DESTINATIONS)
 TOPICS = {
  'еда':['еда','кухн','гастрон','ресторан','кафе'],
  'искусство':['искусств','музе','галере','выстав'],
@@ -83,6 +99,10 @@ def llm_extract(message: str) -> dict:
 def plan(req: PlanningRequest, use_llm: bool=False) -> dict:
     text=req.message.casefold()
     interests=parse_interests(req.message)
+    # Don't treat clearly negated topics as positive wishes.
+    for tag,patterns in TOPICS.items():
+      if any(re.search(r'(?:не\\s+хочу|без|никаких|не\\s+люблю)\\s+[^,.!?]{0,18}'+re.escape(p),text) for p in patterns):
+        interests=[v for v in interests if v!=tag]
     for t in req.travelers:
       interests.extend(t.interests)
     llm=llm_extract(req.message) if use_llm else {'enabled':False,'message':'Локальный разбор; LLM не запрашивалась'}
@@ -101,10 +121,17 @@ def plan(req: PlanningRequest, use_llm: bool=False) -> dict:
       scored.append((score,d))
     scored.sort(key=lambda x:(-x[0],x[1]['name']))
     if not interests and not named:
-      # Deliberately diverse defaults; no inference from somebody else's history.
-      order=['kazan','kaliningrad','uzbekistan','karelia','moscow','georgia','ossetia','armenia']
-      scored.sort(key=lambda x:order.index(x[1]['id']))
-    selected=[x[1] for x in scored[:3]]
+      order=['kaliningrad','almaty','istanbul','karelia','minsk','dagestan','armenia']
+      scored.sort(key=lambda x:order.index(x[1]['id']) if x[1]['id'] in order else 100)
+    # Diversify countries when scores are similar.
+    selected=[]
+    for score,d in scored:
+      if len(selected)>=3:break
+      if not any(x['country']==d['country'] for x in selected) or len(scored)<4:
+        selected.append(d)
+    for score,d in scored:
+      if len(selected)>=3:break
+      if d not in selected:selected.append(d)
     scenarios=[]
     for index,d in enumerate(selected):
       scenarios.append({
