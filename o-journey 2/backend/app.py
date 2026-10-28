@@ -160,6 +160,9 @@ def quote(request: QuoteRequest):
             'is_bookable':bool(request.offers) and all(o.source_type=='verified' and o.source_url and o.checked_at for o in request.offers),
             'lines':line_items,'currency':'RUB'}
 
+from .travel_sources import router as travel_router
+app.include_router(travel_router)
+
 # Phase 6: transparent travel discovery and itinerary checks.
 try:
     from .planner import PlanningRequest, ItineraryCheck, plan, check_itinerary
