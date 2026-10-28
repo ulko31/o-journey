@@ -134,21 +134,13 @@ def plan(req: PlanningRequest, use_llm: bool=False) -> dict:
     # No supplier tariff is known here. Budget cannot be used to rank destinations as affordable.
     # Typical international trips cannot be promised within an arbitrary low budget.
     scored=[]
-    # Non-price travel friction tiers: these only diversify choices, NEVER promise affordability.
-    nearby={'kazan','moscow','novgorod','karelia','kaliningrad','minsk'}
-    longhaul={'bangkok','hanoi','danang','phuket','marrakesh','bali'}
-    premium_distance={'istanbul','belgrade','baku','tashkent','bishkek','almaty','armenia','georgia','dilijan'}
-    low_budget=budget is not None and budget<=30000
-    high_budget=budget is not None and budget>=120000
+    # Never classify a country as affordable or expensive solely from the budget.
+    # Monetary eligibility is evaluated only after dated, sourced transport and stay offers.
     for d in DESTINATIONS:
       overlap=len(set(d['tags']) & set(interests))
       history_like=any(d['name'].casefold() in v.casefold() for v in req.previous_likes)
       history_dislike=any(d['name'].casefold() in v.casefold() for v in req.previous_dislikes)
       score=overlap*3 + (8 if d in named else 0)
-      if low_budget:
-        score+=(8 if d['id'] in nearby else -12 if d['id'] in longhaul else -4 if d['id'] in premium_distance else 0)
-      elif high_budget:
-        score+=(10 if d['id'] in longhaul else 2 if d['id'] in premium_distance else 0)
       if req.novelty=='similar': score+=4 if history_like else 0
       elif req.novelty=='new': score-=5 if history_like else 0
       if history_dislike: score-=7
