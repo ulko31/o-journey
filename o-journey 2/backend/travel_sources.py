@@ -28,12 +28,23 @@ def lodging(destination_id:str):
     if destination_id not in CITIES: raise HTTPException(404,'Unknown destination')
     lat,lon,city=CITIES[destination_id]
     query=f'[out:json][timeout:14];(nwr["tourism"~"^(hotel|hostel|guest_house|motel|apartment)$"]["name"](around:4500,{lat},{lon}););out center 35;'
-    try:
-        url='https://overpass.kumi.systems/api/interpreter?'+urlencode({'data':query})
-        data=fetch(url,timeout=18)
-    except Exception as exc:
-        LOG.warning('Overpass lodging failed: %s: %s',type(exc).__name__,exc)
-        raise HTTPException(503,detail={'message':'Каталог размещения OpenStreetMap сейчас недоступен.','provider':'OpenStreetMap/Overpass'}) from exc
+    data=None
+    failures=[]
+    # Public Overpass mirrors are rate-limited; try independent endpoints.
+    for base in ('https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass.nchc.org.tw/api/interpreter'):
+        try:
+            data=fetch(base+'?'+urlencode({'data':query}),timeout=9)
+            if isinstance(data.get('elements'),list):break
+            data=None
+        except Exception as exc:
+            failures.append(type(exc).__name__)
+            LOG.warning('Overpass mirror failure: %s %s',base,exc)
+    if data is None:
+        # Graceful empty state: not a fabricated hotel list.
+        return {'destination_id':destination_id,'city':city,'source':'OpenStreetMap/Overpass',
+                'checked_at':datetime.now(timezone.utc).isoformat(),
+                'notice':'Каталог сейчас недоступен (публичные серверы перегружены). Объекты и цены не выдумываем.',
+                'provider_status':'unavailable','lodgings':[]}
     items=[]
     seen=set()
     for x in data.get('elements',[]):
@@ -50,7 +61,7 @@ def lodging(destination_id:str):
     return {'destination_id':destination_id,'city':city,'source':'OpenStreetMap/Overpass',
             'checked_at':datetime.now(timezone.utc).isoformat(),
             'notice':'Это реальные названия из открытого каталога, но НЕ проверенные номера, тарифы или наличие.',
-            'lodgings':items[:18]}
+            'provider_status':'ok','lodgings':items[:18]}
 
 class Waypoint(BaseModel):
     lat:float=Field(ge=-90,le=90)
