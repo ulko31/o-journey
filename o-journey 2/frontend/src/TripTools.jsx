@@ -2,10 +2,11 @@ import React,{useEffect,useMemo,useState} from 'react';
 
 const fmt=n=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).format(Number(n)||0);
 
-export default function TripTools({cityId,city,chosen,days,travelers,budgetLimit,customDestination,onRouteChange}){
+export default function TripTools({cityId,city,chosen,days,travelers,budgetLimit,customDestination,origin,onRouteChange}){
  const [lodging,setLodging]=useState(null),[lodgingError,setLodgingError]=useState(''),[loadingHotels,setLoadingHotels]=useState(false),[hotelId,setHotelId]=useState('');
- const [demo,setDemo]=useState(null),[demoLoading,setDemoLoading]=useState(false),[groupType,setGroupType]=useState('regular');
+ const [flights,setFlights]=useState(null),[demo,setDemo]=useState(null),[demoLoading,setDemoLoading]=useState(false),[groupType,setGroupType]=useState('regular');
  const [road,setRoad]=useState(null),[roadError,setRoadError]=useState(''),[loadingRoad,setLoadingRoad]=useState(false);
+ useEffect(()=>{let active=true;setFlights(null);fetch('/api/flight-prices?origin='+encodeURIComponent(origin||'')+'&destination='+encodeURIComponent(city.name)).then(r=>r.json()).then(j=>{if(active)setFlights(j)}).catch(()=>{if(active)setFlights({status:'provider_unavailable',notice:'Источник авиабилетов не отвечает.'})});return()=>{active=false}},[origin,cityId]);
  const [costs,setCosts]=useState({night:'',transport:'',meals:'',activities:'',extra:''});
  const hotel=lodging?.lodgings?.find(h=>h.id===hotelId);
  const nights=Math.max(0,Number(days||1)-1);
@@ -26,7 +27,7 @@ export default function TripTools({cityId,city,chosen,days,travelers,budgetLimit
  const change=(key,value)=>setCosts(v=>({...v,[key]:value}));
  return <section className="builder-tools">
  <div className="builder-heading"><div><span className="eyebrow">СОБИРАЕМ ПОЕЗДКУ</span><h2>Ваш план в деталях</h2><p>Три понятных шага: жильё → дорога → бюджет</p></div><span className="tool-label">Данные с источниками</span></div>
- <div className="tools-grid">
+ <div className="flight-panel"><strong>Авиабилеты · реальные наблюдаемые цены</strong>{flights?.offers?.length?<><p>Из кэша Travelpayouts: от {fmt(Math.min(...flights.offers.map(x=>x.price_rub)))} ₽ за билет. Это не подтверждённая цена на ваши даты.</p><small>{flights.notice}</small></>:<p>{flights?.notice||'Проверяем подключение источника авиабилетов…'}</p>}</div><div className="tools-grid">
   <article className="surface tool-card"><div className="tool-no">01</div><h3>Где остановимся?</h3><p className="sub">Загрузим настоящие названия отелей, хостелов и гостевых домов из OpenStreetMap.</p>
   <button type="button" className="primary" onClick={loadHotels} disabled={loadingHotels}>{loadingHotels?'Ищем объекты…':'Найти варианты жилья'}</button>
   {lodgingError&&<div className="error" role="alert">{lodgingError}</div>}
