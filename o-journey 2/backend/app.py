@@ -215,3 +215,10 @@ def create_plan(request: PlanningRequest, use_llm: bool=False):
 @app.post('/api/itinerary/check')
 def validate_itinerary(request: ItineraryCheck):
     return check_itinerary(request)
+
+try:
+    from .agent import router as agent_router
+except ImportError as exc:
+    if 'no known parent package' not in str(exc):raise
+    from agent import router as agent_router
+app.include_router(agent_router)
