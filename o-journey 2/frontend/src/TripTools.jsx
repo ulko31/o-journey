@@ -4,7 +4,8 @@ const fmt=n=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).format(Num
 
 export default function TripTools({cityId,city,chosen,days,travelers,budgetLimit,customDestination,onRouteChange}){
  const [lodging,setLodging]=useState(null),[lodgingError,setLodgingError]=useState(''),[loadingHotels,setLoadingHotels]=useState(false),[hotelId,setHotelId]=useState('');
- const [demo,setDemo]=useState(null),[demoLoading,setDemoLoading]=useState(false),[groupType,setGroupType]=useState('regular'),const [road,setRoad]=useState(null),[roadError,setRoadError]=useState(''),[loadingRoad,setLoadingRoad]=useState(false);
+ const [demo,setDemo]=useState(null),[demoLoading,setDemoLoading]=useState(false),[groupType,setGroupType]=useState('regular');
+ const [road,setRoad]=useState(null),[roadError,setRoadError]=useState(''),[loadingRoad,setLoadingRoad]=useState(false);
  const [costs,setCosts]=useState({night:'',transport:'',meals:'',activities:'',extra:''});
  const hotel=lodging?.lodgings?.find(h=>h.id===hotelId);
  const nights=Math.max(0,Number(days||1)-1);
