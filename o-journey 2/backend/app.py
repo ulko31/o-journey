@@ -222,3 +222,10 @@ except ImportError as exc:
     if 'no known parent package' not in str(exc):raise
     from agent import router as agent_router
 app.include_router(agent_router)
+
+try:
+    from .stayapi import router as hotels_router
+except ImportError as exc:
+    if 'no known parent package' not in str(exc):raise
+    from stayapi import router as hotels_router
+app.include_router(hotels_router)
