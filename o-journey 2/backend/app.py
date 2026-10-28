@@ -11,7 +11,7 @@ import ssl
 import certifi
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
 app = FastAPI(title='O! Journey verification API', version='0.4.0')
@@ -44,11 +44,11 @@ def get_json(url: str, params: dict) -> dict:
 
 @app.get('/')
 def index():
-    return FileResponse(ROOT/'index.html')
+    return RedirectResponse(url='http://localhost:5188/',status_code=307)
 
 @app.get('/api/health')
 def health():
-    return {'status':'ok','external_weather':'open-meteo','prices':'not_connected','ai':'available_when_configured'}
+    return {'status':'ok','external_weather':'open-meteo','hotel_provider':'stayapi_if_configured','ai':'ollama_if_available'}
 
 SEASON_GUIDANCE = {
  'kazan':'Континентальный климат: зимой морозно, летом бывает тепло.',
