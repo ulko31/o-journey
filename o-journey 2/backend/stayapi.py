@@ -18,7 +18,8 @@ def request(path,params):
             return json.load(response)
     except HTTPError as e:
         # Do not expose upstream body, potentially revealing credentials or details.
-        if e.code==429:raise HTTPException(429,"StayAPI quota or rate limit reached")
+        if e.code in (401,403):raise HTTPException(502,"StayAPI отклонил ключ или тариф не разрешает этот запрос. Проверьте STAYAPI_KEY и лимит в кабинете.")
+        if e.code==429:raise HTTPException(429,"StayAPI: лимит запросов или кредитов исчерпан")
         raise HTTPException(502,f"StayAPI request failed (HTTP {e.code})")
     except (URLError,TimeoutError,ValueError) as e:
         raise HTTPException(503,f"StayAPI unavailable ({type(e).__name__})")
@@ -34,8 +35,8 @@ def hotels(city:str=Query(min_length=2,max_length=120),checkin:date=None,checkou
     chosen=matches[0] if matches and isinstance(matches[0],dict) else destination_data
     if not isinstance(chosen,dict):chosen={}
     dest_id=destination.get("dest_id") or chosen.get("dest_id")
-    if not dest_id:
-        return {"hotels":[],"message":"Destination not found","source":"StayAPI"}
+    if dest_id is None:
+        raise HTTPException(404,"StayAPI не нашёл город. Попробуйте другое написание, например Istanbul вместо Стамбул.")
     payload=request("search",{"dest_id":dest_id,"dest_type":destination.get("dest_type") or chosen.get("dest_type") or "CITY",
         "checkin":checkin.isoformat(),"checkout":checkout.isoformat(),"adults":adults,
         "rooms":rooms,"currency":currency,"rows_per_page":10})

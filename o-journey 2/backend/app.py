@@ -249,3 +249,11 @@ def agent_diagnostics():
         report['ollama']['error_type']=type(exc).__name__
         report['ollama']['hint']='Проверьте Ollama на Mac и OLLAMA_BASE_URL; сервис должен быть доступен контейнеру.'
     return report
+
+try:
+    from .assembly import router as assembly_router
+except ImportError as exc:
+    if 'no known parent package' not in str(exc):
+        raise
+    from assembly import router as assembly_router
+app.include_router(assembly_router)

@@ -54,3 +54,20 @@
 .top-nav button{background:transparent;color:#fff;border:1px solid transparent;border-radius:12px;padding:11px 15px;font-weight:800}
 .top-nav button.active{background:#def66a;color:#1d3a9e}
 @media(max-width:680px){.header{padding:12px 15px;flex-wrap:wrap}.brand{font-size:21px}.top-nav{margin-left:0;order:3;width:100%}.status{margin-left:auto}main{padding:18px 12px}.surface{padding:19px}.form-grid{grid-template-columns:1fr}.scenario-grid,.trip-layout,.tools-grid{grid-template-columns:1fr}.layout>.form-card{width:100%}}
+
+/* Hackathon UX fixes: expose map pin editor and consistent form controls. */
+.atlas-page .atlas-add{display:block!important}
+.home-highlights{max-width:1020px;margin:0 auto 19px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.home-highlights>div{display:flex;flex-direction:column;gap:10px;border:1px solid #d9e3f4;border-radius:22px;background:white;padding:24px}
+.home-highlights strong{color:#213e91;font-size:21px}
+.home-highlights span{color:#65758d;font-size:14px}
+.home-highlights button{align-self:start}
+select{appearance:none;-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,#3356ad 50%),linear-gradient(135deg,#3356ad 50%,transparent 50%);background-position:calc(100% - 20px) 50%,calc(100% - 15px) 50%;background-size:5px 5px;background-repeat:no-repeat;padding-right:35px!important;background-color:#f9fbff;color:#1c3049;border:1px solid #d1deef;border-radius:12px}
+input[type=date]{color:#1c3049;background:#f9fbff;border:1px solid #d1deef;border-radius:12px;color-scheme:light}
+input[type=date]::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.72;filter:sepia(1) saturate(5) hue-rotate(175deg)}
+.stop-text>a,.poi-row a{display:inline-block;margin-top:7px;color:#2448c6;font-size:13px;font-weight:700}
+.budget-card details{border-top:1px solid #dbe4ef;margin-top:16px;padding-top:14px}
+.budget-card summary{cursor:pointer;color:#274ac3;font-weight:750}
+@media(max-width:700px){.home-highlights{grid-template-columns:1fr}}
+
+.country-atlas-overlay{position:absolute;inset:0;z-index:500;display:flex;flex-direction:column;background:#f1f5fa;border-radius:12px;overflow:hidden}.country-atlas-overlay svg{width:100%;height:100%;min-height:0}.country-atlas-overlay path{cursor:pointer;transition:fill .15s}.country-atlas-overlay path:hover{fill:#dff36d}.country-atlas-overlay button{position:absolute;bottom:13px;right:13px;background:white;box-shadow:0 3px 12px #102c5430}
